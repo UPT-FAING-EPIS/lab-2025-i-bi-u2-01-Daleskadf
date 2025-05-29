@@ -44,7 +44,7 @@ CREATE TABLE PAQUETE_TRABAJO (
     ID_Proyecto INT,
     ID_Responsable INT,
     ID_Localidad INT,
-    proyecto_colaborador_responsable_localidad VARCHAR(MAX)
+    proyecto_colaborador_responsable_localidad VARCHAR(MAX),
     FOREIGN KEY (ID_Proyecto) REFERENCES PROYECTO(ID_Proyecto),
     FOREIGN KEY (ID_Responsable) REFERENCES RESPONSABLE(ID_Responsable),
     FOREIGN KEY (ID_Localidad) REFERENCES LOCALIDAD(ID_Localidad)
