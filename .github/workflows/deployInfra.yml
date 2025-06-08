@@ -1,0 +1,43 @@
+name: 'Desplegar Infraestructura de Azure (Terraform)'
+
+on:
+  push:
+    branches:
+      - main 
+    paths:
+      - 'main.tf' 
+  workflow_dispatch: 
+
+jobs:
+  terraform:
+    name: 'Aplicar Terraform'
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout del código del repositorio
+      uses: actions/checkout@v3
+
+    - name: Iniciar sesión en Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Instalar y configurar Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.2.9 
+
+    - name: Terraform Init
+      run: terraform init
+      
+    - name: Terraform Apply
+      run: terraform apply -auto-approve
+
+    - name: Guardar outputs de Terraform en un archivo JSON
+      run: terraform output -json > terraform-outputs.json
+
+    - name: Subir artefacto con los outputs para el siguiente Job
+      uses: actions/upload-artifact@v3
+      with:
+        name: terraform-outputs
+        path: terraform-outputs.json 
