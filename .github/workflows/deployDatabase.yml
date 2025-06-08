@@ -1,0 +1,59 @@
+name: 'Desplegar Esquemas de Base de Datos (Liquibase)'
+
+on:
+  workflow_run:
+    workflows: ["Desplegar Infraestructura de Azure (Terraform)"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch: 
+
+jobs:
+  deploy-schemas:
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    strategy:
+      fail-fast: false 
+      matrix:
+        db_config:
+          - { db_name: "db_envios_erd",    changelog: "changelog-envios-erd.xml" }
+          - { db_name: "db_envios_dim",    changelog: "changelog-envios-dim.xml" }
+          - { db_name: "db_reservas_erd",  changelog: "changelog-reservas-erd.xml" }
+          - { db_name: "db_reservas_dim",  changelog: "changelog-reservas-dim.xml" }
+          - { db_name: "db_proyectos_erd", changelog: "changelog-proyectos-erd.xml" }
+          - { db_name: "db_proyectos_dim", changelog: "changelog-proyectos-dim.xml" }
+
+    steps:
+      - name: Checkout del código del repositorio
+        uses: actions/checkout@v3
+
+      - name: Descargar artefacto con las credenciales desde el workflow de Terraform
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-outputs
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Instalar 'jq' para poder leer el archivo JSON de outputs
+        run: sudo apt-get install -y jq
+
+      - name: Leer outputs y configurar variables de entorno para Liquibase
+        run: |
+          echo "SQL_SERVER_FQDN=$(jq -r '.sql_server_fqdn.value' terraform-outputs.json)" >> $GITHUB_ENV
+          echo "SQL_ADMIN_USER=$(jq -r '.sql_admin_login_output.value' terraform-outputs.json)" >> $GITHUB_ENV
+          # La contraseña es sensible, se enmascara para que no aparezca en los logs
+          SQL_PASSWORD=$(jq -r '.sql_admin_password_output.value' terraform-outputs.json)
+          echo "::add-mask::$SQL_PASSWORD"
+          echo "SQL_PASSWORD=$SQL_PASSWORD" >> $GITHUB_ENV
+
+      - name: Desplegar esquema en ${{ matrix.db_config.db_name }} con Liquibase
+        uses: liquibase-github-actions/update@v4.18.0
+        with:
+
+          changelogFile: ${{ matrix.db_config.changelog }}
+
+          url: "jdbc:sqlserver://${{ env.SQL_SERVER_FQDN }}:1433;databaseName=${{ matrix.db_config.db_name }};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
+
+          username: ${{ env.SQL_ADMIN_USER }}
+          password: ${{ env.SQL_PASSWORD }}
