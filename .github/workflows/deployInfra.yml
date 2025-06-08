@@ -23,6 +23,7 @@ jobs:
     - name: Iniciar sesión en Azure
       uses: azure/login@v1
       with:
+        
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Instalar y configurar terraform
@@ -33,7 +34,7 @@ jobs:
     - name: Terraform Init
       run: terraform init
       
-      
+
     - name: Terraform Apply
       run: terraform apply -auto-approve
 
