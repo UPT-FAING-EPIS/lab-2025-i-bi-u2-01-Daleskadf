@@ -30,7 +30,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Descargar artefacto con las credenciales desde el workflow de Terraform
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: terraform-outputs
           run-id: ${{ github.event.workflow_run.id }}
