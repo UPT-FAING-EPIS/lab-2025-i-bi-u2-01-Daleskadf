@@ -11,17 +11,22 @@ jobs:
     name: 'Aplicar Terraform'
     runs-on: ubuntu-latest
     
+    # Establece el directorio de trabajo para todos los comandos 'run' de este job.
+    defaults:
+      run:
+        working-directory: ./infra
+
     steps:
     - name: Checkout del código del repositorio
-      uses: actions/checkout@v3
+      uses: actions/checkout@v4
 
     - name: Iniciar sesión en Azure
       uses: azure/login@v1
       with:
         creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-    - name: Instalar y configurar Terraform
-      uses: hashicorp/setup-terraform@v2
+    - name: Instalar y configurar terraform
+      uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.2.9 
 
@@ -38,4 +43,5 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: terraform-outputs
-        path: terraform-outputs.json 
+        # ¡Importante! La ruta ahora debe incluir la carpeta 'infra'
+        path: infra/terraform-outputs.json
