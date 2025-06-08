@@ -69,6 +69,8 @@ resource "azurerm_mssql_server" "lab_sql_server" {
   administrator_login_password = random_password.sql_admin_password.result
   minimum_tls_version          = "1.2" # Buena práctica
 
+
+
   tags = {
     environment = "lab"
     project     = "lab01-dimensional-design"
