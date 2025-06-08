@@ -5,55 +5,64 @@ on:
     workflows: ["Desplegar Infraestructura de Azure (Terraform)"]
     types:
       - completed
-    branches:
-      - main
-  workflow_dispatch: 
+  workflow_dispatch:
 
 jobs:
   deploy-schemas:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
-    strategy:
-      fail-fast: false 
-      matrix:
-        db_config:
-          - { db_name: "db_envios_erd",    changelog: "changelog-envios-erd.xml" }
-          - { db_name: "db_envios_dim",    changelog: "changelog-envios-dim.xml" }
-          - { db_name: "db_reservas_erd",  changelog: "changelog-reservas-erd.xml" }
-          - { db_name: "db_reservas_dim",  changelog: "changelog-reservas-dim.xml" }
-          - { db_name: "db_proyectos_erd", changelog: "changelog-proyectos-erd.xml" }
-          - { db_name: "db_proyectos_dim", changelog: "changelog-proyectos-dim.xml" }
+    # Se ejecuta si el workflow que lo disparó tuvo éxito O si se ejecuta manualmente
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
 
     steps:
       - name: Checkout del código del repositorio
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
-      - name: Descargar artefacto con las credenciales desde el workflow de Terraform
+      - name: Instalar GitHub CLI
+        uses: crazy-max/ghaction-github-cli@v3
+        with:
+          install-only: true
+
+      - name: Encontrar la última ejecución exitosa de 'deployInfra'
+        id: find_run
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Si fue disparado por otro workflow, usamos su ID.
+          # Si es manual, buscamos la última ejecución exitosa en la rama main.
+          if [ "${{ github.event_name }}" == "workflow_run" ]; then
+            echo "run_id=${{ github.event.workflow_run.id }}" >> $GITHUB_OUTPUT
+          else
+            LATEST_SUCCESS_RUN_ID=$(gh run list --workflow="Desplegar Infraestructura de Azure (Terraform)" --status=success --branch=main --json databaseId -q '.[0].databaseId')
+            if [ -z "$LATEST_SUCCESS_RUN_ID" ]; then
+              echo "::error::No se encontró una ejecución exitosa del workflow de infraestructura."
+              exit 1
+            fi
+            echo "run_id=$LATEST_SUCCESS_RUN_ID" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Descargar artefacto desde la ejecución encontrada
         uses: actions/download-artifact@v4
         with:
           name: terraform-outputs
-          run-id: ${{ github.event.workflow_run.id }}
+          run-id: ${{ steps.find_run.outputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Instalar 'jq' para poder leer el archivo JSON de outputs
+      - name: Instalar 'jq'
         run: sudo apt-get install -y jq
 
-      - name: Leer outputs y configurar variables de entorno para Liquibase
+      - name: Leer outputs y configurar variables de entorno
         run: |
           echo "SQL_SERVER_FQDN=$(jq -r '.sql_server_fqdn.value' terraform-outputs.json)" >> $GITHUB_ENV
           echo "SQL_ADMIN_USER=$(jq -r '.sql_admin_login_output.value' terraform-outputs.json)" >> $GITHUB_ENV
-          # La contraseña es sensible, se enmascara para que no aparezca en los logs
           SQL_PASSWORD=$(jq -r '.sql_admin_password_output.value' terraform-outputs.json)
           echo "::add-mask::$SQL_PASSWORD"
           echo "SQL_PASSWORD=$SQL_PASSWORD" >> $GITHUB_ENV
 
-      - name: Desplegar esquema en ${{ matrix.db_config.db_name }} con Liquibase
+      - name: Desplegar esquema en ${{ matrix.db_config.db_name }}
         uses: liquibase-github-actions/update@v4.18.0
         with:
-
+          # ... (el resto del archivo es igual)
           changelogFile: ${{ matrix.db_config.changelog }}
-
           url: "jdbc:sqlserver://${{ env.SQL_SERVER_FQDN }}:1433;databaseName=${{ matrix.db_config.db_name }};encrypt=true;trustServerCertificate=false;hostNameInCertificate=*.database.windows.net;loginTimeout=30;"
-
           username: ${{ env.SQL_ADMIN_USER }}
           password: ${{ env.SQL_PASSWORD }}
