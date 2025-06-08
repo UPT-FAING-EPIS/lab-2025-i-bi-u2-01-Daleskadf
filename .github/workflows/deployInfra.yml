@@ -35,7 +35,7 @@ jobs:
       run: terraform output -json > terraform-outputs.json
 
     - name: Subir artefacto con los outputs para el siguiente Job
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: terraform-outputs
         path: terraform-outputs.json 
